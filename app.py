@@ -645,43 +645,57 @@ def main():
 
     st.markdown(
         """
-        This tool estimates **uniform corrosion rate of steel piles in soil (mm/yr)** 
-        according to multiple **design standards**, based on soil/environmental parameters.
+        This tool estimates **uniform corrosion rate (mm/yr)** and corresponding  
+        **thickness loss (mm)** for steel piles based on multiple international standards.
         """
     )
 
     st.subheader("Input Soil / Environment Parameters")
 
-    # ----------------- INPUT WIDGETS (2 COLS, 5 ROWS) -----------------
+    # ============================================================
+    # EXACT 5-ROW INPUT LAYOUT
+    # ============================================================
+
     col1, col2 = st.columns(2)
 
+    # ------- ROW 1 -------
     with col1:
-        age = st.number_input("Age (years)", min_value=1.0, max_value=200.0, value=34.0, step=1.0)
-        ph = st.number_input("Soil pH", min_value=2.0, max_value=12.0, value=7.8, step=0.1)
-        cl = st.number_input("Chloride (mg/kg)", min_value=0.0, max_value=50000.0, value=444.0, step=10.0)
-        so4 = st.number_input("Sulphate (mg/kg)", min_value=0.0, max_value=50000.0, value=328.0, step=10.0)
-
+        age = st.number_input("Age (years)", min_value=1.0, max_value=200.0,
+                              value=34.0, step=1.0)
     with col2:
-        rho = st.number_input("Soil Resistivity (Ω·cm)", min_value=50.0, max_value=50000.0, value=900.0, step=50.0)
+        ph = st.number_input("Soil pH", min_value=2.0, max_value=12.0,
+                             value=7.8, step=0.1)
 
-        soil_type_options = ["CL", "SM", "ML", "SP", "CH", "GP", "SW", "OL", "SC", "GT", "GW"]
-        soil_type = st.selectbox("Soil Type (USCS)", soil_type_options, index=0)
+    # ------- ROW 2 -------
+    with col1:
+        cl = st.number_input("Chloride (mg/kg)", min_value=0.0, max_value=50000.0,
+                             value=444.0, step=10.0)
+    with col2:
+        so4 = st.number_input("Sulphate (mg/kg)", min_value=0.0, max_value=50000.0,
+                              value=328.0, step=10.0)
 
-        loc_options = ["Above WaterTable", "Fluctuation Zone", "Permanent Immersion"]
-        loc = st.selectbox("Location wrt Water Table", loc_options, index=0)
+    # ------- ROW 3 -------
+    with col1:
+        rho = st.number_input("Soil Resistivity (Ω·cm)", min_value=50.0, max_value=50000.0,
+                              value=900.0, step=50.0)
+    with col2:
+        soil_type = st.selectbox("Soil Type (USCS)",
+                                 ["CL","SM","ML","SP","CH","GP","SW","OL","SC","GT","GW"])
 
-    col3, col4 = st.columns(2)
-    with col3:
-        fill_str = st.selectbox("Is Fill Material?", ["No", "Yes"], index=0)
-    with col4:
-        foreign_str = st.selectbox("Has Foreign Inclusions (rubble, wood, etc.)?", ["No", "Yes"], index=0)
+    # ------- ROW 4 -------
+    with col1:
+        loc = st.selectbox("Location wrt Water Table",
+                           ["Above WaterTable", "Fluctuation Zone", "Permanent Immersion"])
+    with col2:
+        fill_flag = 1 if st.selectbox("Is Fill Material?", ["No", "Yes"]) == "Yes" else 0
 
-    foreign_type_options = ["None", "Flyash", "Shredded wood", "Cinder"]
-    foreign_type = st.selectbox("Foreign Inclusion Type", foreign_type_options, index=0)
-
-    # Convert Yes/No to 0/1
-    fill_flag = 1 if fill_str == "Yes" else 0
-    foreign_flag = 1 if foreign_str == "Yes" else 0
+    # ------- ROW 5 -------
+    with col1:
+        foreign_flag = 1 if st.selectbox("Has Foreign Inclusions (rubble, wood, etc.)?",
+                                         ["No", "Yes"]) == "Yes" else 0
+    with col2:
+        foreign_type = st.selectbox("Foreign Inclusion Type",
+                                    ["None", "Flyash", "Shredded wood", "Cinder"])
 
     # Build row dict
     row = {
@@ -698,49 +712,64 @@ def main():
     }
 
     st.markdown("---")
+
+    # ============================================================
+    # PROCESS INPUT
+    # ============================================================
     if st.button("Estimate Corrosion Rates"):
         rates = compute_all_standards(row)
 
-        # =======================================================
-        # TABLE: Full Names + Thickness Loss over Age
-        # =======================================================
+        # ============================================================
+        # TABLE OUTPUT (RATE + LOSS)
+        # ============================================================
         data = []
         for key in STANDARD_KEYS:
             rate = rates.get(key, np.nan)
-            loss = rate * age  # mm loss at given age
+            loss = rate * age
             data.append({
                 "Design Standard": DISPLAY_NAMES.get(key, key),
-                "Thickness Loss over Age (mm)": loss
+                "Corrosion Rate (mm/yr)": rate,
+                "Thickness Loss over years (mm)": loss
             })
+
         df_out = pd.DataFrame(data)
 
-        st.subheader("Estimated Thickness Loss over Input Age")
-        st.dataframe(df_out.style.format({"Thickness Loss over Age (mm)": "{:.3f}"}),
-                     use_container_width=True)
+        st.subheader("Estimated Corrosion Rate & Thickness Loss")
+        st.dataframe(
+            df_out.style.format({
+                "Corrosion Rate (mm/yr)": "{:.4f}",
+                "Thickness Loss (mm)": "{:.3f}"
+            }),
+            use_container_width=True
+        )
 
-        # =======================================================
-        # BAR CHART — ONLY SHORT CODE NAMES
-        # =======================================================
-        st.subheader("Comparison of Standards (Short Code Names Only)")
+        # ============================================================
+        # BAR CHART
+        # ============================================================
+        st.subheader("Comparison of Corrosion Rate (mm/yr)")
 
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(11, 6))
 
         x_labels = [SHORT_NAMES[k] for k in STANDARD_KEYS]
-        y_vals   = [rates[k] * age for k in STANDARD_KEYS]
+        y_vals = [rates[k] for k in STANDARD_KEYS]
         x_pos = np.arange(len(x_labels))
-
         colors = [STANDARD_COLORS.get(k, "gray") for k in STANDARD_KEYS]
 
         ax.bar(x_pos, y_vals, color=colors, edgecolor="black")
 
         ax.set_xticks(x_pos)
-        ax.set_xticklabels(x_labels, rotation=0, fontsize=12)
-        ax.set_ylabel("Thickness Loss (mm)", fontsize=12)
-        ax.set_ylim(bottom=0)
+        ax.set_xticklabels(x_labels, fontsize=14)  # larger font
+        ax.set_ylabel("Corrosion Rate (mm/yr)", fontsize=16)
 
+        # Y-tick font size increase
+        plt.yticks(fontsize=16)
+
+        # Value labels: bigger font
         for i, v in enumerate(y_vals):
-            ax.text(i, v + max(y_vals)*0.02, f"{v:.2f}",
-                    ha="center", va="bottom", fontsize=10)
+            ax.text(i, v + max(y_vals)*0.02,
+                    f"{v:.4f}",
+                    ha="center", va="bottom",
+                    fontsize=14)
 
         ax.grid(axis="y", alpha=0.3)
         plt.tight_layout()
