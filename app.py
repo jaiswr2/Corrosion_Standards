@@ -437,8 +437,8 @@ def predict_china(row):
 CALTRANS_RATES = {
     "Natural Soil":          0.025,
     "Fill/Disturbed":        0.0381,
-    "Highly Corrosive Fill": 0.05,
-    "Not Corrosive":         0.001,
+    "Highly Corrosive Fill": NA,
+    "Not Corrosive":         0.0,
 }
 
 def caltrans_classification(row):
@@ -777,3 +777,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
